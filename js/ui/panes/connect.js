@@ -111,8 +111,6 @@ qwebirc.ui.Panes.Connect.pclass = new Class({
 
     var c = conf.frontend.initial_chans.split(" ")[0].split(",");
 
-    text.appendChild(document.createTextNode("To connect to " + conf.frontend.network_name + " IRC and join channel" + ((c.length>1)?"s":"") + " "));
-
     for(var i=0;i<c.length;i++) {
       if((c.length > 1) && (i == c.length - 1)) {
         text.appendChild(document.createTextNode(" and "));
@@ -179,7 +177,7 @@ qwebirc.ui.Panes.Connect.pclass = new Class({
 
     var td = new Element("td");
     tr.appendChild(td);
-    td.set("html", "<h1>Connect to " + conf.frontend.network_name + " IRC</h1>");
+    td.set("html", "<h1>Connect to " + conf.frontend.network_name + " WebChat</h1>");
 
     var tr = new Element("tr");
     tbody.appendChild(tr);
@@ -219,60 +217,12 @@ qwebirc.ui.Panes.Connect.pclass = new Class({
       return d2;
     }
 
-    this.nickBox = new Element("input");
-    createRow("Nickname:", this.nickBox);
-
-    if (conf.atheme.nickserv_login) {
-      var srvbutton = new Element("input");
-      srvbutton.set("type", "checkbox");
-      srvbutton.set("checked", false);
-      createRow("Login to Services:", srvbutton);
-
-      var user = new Element("input");
-      var userRow = createRow("Username:", user, {})[0];
-      userRow.setStyle("display", "none");
-
-      var pass = new Element("input");
-      pass.set("type", "password");
-      var passRow = createRow("Password:", pass, {})[0];
-      passRow.setStyle("display", "none");
-
-      var syncInput = function (e) {
-        user.value = this.nickBox.value;
-      }.bind(this);
-
-      /* the 'input' event is buggy in IE9, but this isn't a very
-       * important feature.
-       */
-      user.addEvent("input", function (e) {
-        this.nickBox.removeEvent("input", syncInput, false);
-      }.bind(this), false);
-
-      srvbutton.addEvent("click", function(e) {
-        var visible = srvbutton.checked;
-        var display = visible ? null : "none";
-        userRow.setStyle("display", display);
-        passRow.setStyle("display", display);
-        if (visible) {
-          this.nickBox.addEvent("input", syncInput, false);
-          user.focus();
-          /* setting the value after calling focus() will place the cursor at
-           * the end of the text.
-           */
-          user.value = this.nickBox.value;
-        } else {
-          this.nickBox.removeEvent("input", syncInput, false);
-          this.nickBox.focus();
-        }
-      }.bind(this));
-
-    }
-
-    if (channel || conf.frontend.chan_prompt ||
-        !conf.frontend.initial_chans) {
-      this.chanBox = new Element("input");
-      createRow("Channels:", this.chanBox);
-    }
+    var data = {"nickname": "webuser", "autojoin": "" };
+    var user = new Element("input");
+    var userRow = createRow("Username:", user, {})[0];
+    var pass = new Element("input");
+    pass.set("type", "password");
+    var passRow = createRow("Password:", pass, {})[0];
 
     var connbutton = new Element("input", {"type": "submit"});
     connbutton.set("value", "Connect");
@@ -281,75 +231,43 @@ qwebirc.ui.Panes.Connect.pclass = new Class({
     form.addEvent("submit", function(e) {
       new Event(e).stop();
 
-      if(!this.nickBox.value) {
-        alert("You must supply a nickname.");
-        this.nickBox.focus();
+      if (!user.value) {
+        alert("You must supply a username.");
+        user.focus();
+        return;
+      }
+      if (!pass.value) {
+        alert("You must supply a password.");
+        pass.focus();
         return;
       }
 
-      if(!this.nickBox.value.match(/^[a-zA-Z0-9`^\-_\[\]{}|\\]+$/)) {
-        alert("Invalid nickname entered; only characters in the list \"A-Z a-z 0-9 ` ^ - \\ [ ] { } |\" are allowed.");
-        this.nickBox.focus();
+      var client = new XMLHttpRequest();
+      var params = "username=" + encodeURIComponent(user.value) + "&password=" + encodeURIComponent(pass.value);
+      client.open("POST", "/sasl/", false);
+      client.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+      client.setRequestHeader("Content-lenght", params.length);
+      client.setRequestHeader("Connection", "close");
+      client.send(params);
+      var response = client.responseText;
+      if(!response) {
+        alert("Your supplied username or password does not match our user records.");
+        user.focus();
         return;
       }
-      if(this.nickBox.value.match(/^\d/) || this.nickBox.value[0] == '-') {
-        alert("Invalid nickname entered; nicknames may not start with - or a number.");
-        this.nickBox.focus();
-        return;
-      }
-      Cookie.write("iris-nick", this.nickBox.value, {"duration": 3650});
 
-      if (conf.atheme.nickserv_login) {
-        if (srvbutton.checked) {
-          if (!user.value) {
-            alert("You must supply a username.");
-            user.focus();
-            return;
-          }
-          if (!pass.value) {
-            alert("You must supply a password.");
-            pass.focus();
-            return;
-          }
-        }
+      this.session.atheme.state = true;
+      this.session.atheme.user = user.value;
+      this.session.atheme.secret = response; 
 
-        if (srvbutton.checked && conf.atheme.sasl_type == "AUTHCOOKIE") {
-          qwebirc.irc.AthemeQuery.login(function(token) {
-            if (token == null)
-              alert("Authentication failed");
-            else
-              qwebirc.ui.Atheme.handleLogin(this.session, user.value, token);
-            this.connect(null);
-          }.bind(this), user.value, pass.value);
-        }
-        else if (srvbutton.checked && conf.atheme.sasl_type == "PLAIN") {
-          this.session.atheme.state = true;
-          this.session.atheme.user = user.value;
-          this.session.atheme.secret = pass.value;
-          this.connect(null);
-        }
-        else {
-          qwebirc.ui.Atheme.handleLogout(this.session);
-          this.connect(null);
-        }
-      }
-      else {
-        this.connect(null);
-      }
+      data["authUser"] = this.session.atheme.user;
+      data["authSecret"] = this.session.atheme.secret;
+      data["serverPassword"] = user.value + ":" + pass.value;
 
+      this.connectCallback(data);
     }.bind(this));
 
-    if (Cookie.read("iris-nick") != null)
-      this.nickBox.set("value", Cookie.read("iris-nick"));
-    else if (conf.frontend.initial_nick)
-      this.nickBox.set("value", conf.frontend.initial_nick);
-
-    if (this.chanBox != null && channel)
-      this.chanBox.set("value", channel);
-    else if (this.chanBox != null)
-      this.chanBox.set("value", conf.frontend.initial_chans);
-
-    this.autoFocus(this.nickBox);
+    this.autoFocus(this.user);
   }
 });
 

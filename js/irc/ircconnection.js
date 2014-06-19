@@ -253,13 +253,7 @@ qwebirc.irc.IRCConnection = new Class({
       this.recv();
     }.bind(this));
 
-    var postdata = "nick=" + encodeURIComponent(this.initialNickname);
-    if($defined(this.options.serverPassword))
-      postdata+="&password=" + encodeURIComponent(this.options.serverPassword);
-    if($defined(this.options.authUser) && $defined(this.options.authSecret)) {
-      postdata+="&authUser=" + encodeURIComponent(this.options.authUser);
-      postdata+="&authSecret=" + encodeURIComponent(this.options.authSecret);
-    }
+    var postdata = "nick=webuser&password=" + encodeURIComponent(this.options.serverPassword);
 
     r.send(postdata);
   },
