@@ -177,7 +177,7 @@ qwebirc.ui.Panes.Connect.pclass = new Class({
 
     var td = new Element("td");
     tr.appendChild(td);
-    td.set("html", "<h1>Connect to " + conf.frontend.network_name + " WebChat</h1>");
+    td.set("html", "<h1>Connect to " + conf.frontend.network_name + " Web Chat</h1>");
 
     var tr = new Element("tr");
     tbody.appendChild(tr);
